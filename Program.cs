@@ -1,9 +1,10 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Json;
 using HoneyRaesAPI.Models;
+using Microsoft.AspNetCore.Http.HttpResults;
 // add 5 tickets
 
-List<Customer> customers = new List<Customer> { 
+List<Customer> customers = new List<Customer> {
     new Customer()
     {
         Id = 1,
@@ -23,7 +24,7 @@ List<Customer> customers = new List<Customer> {
         Address = "500 Cant see me Ave"
     }
 };
-List<Employee> employees = new List<Employee> { 
+List<Employee> employees = new List<Employee> {
     new Employee()
     {
         Id = 1,
@@ -37,7 +38,7 @@ List<Employee> employees = new List<Employee> {
         Specialty = "Plumbing"
     }
 };
-List<ServiceTicket> serviceTickets = new List<ServiceTicket> { 
+List<ServiceTicket> serviceTickets = new List<ServiceTicket> {
     new ServiceTicket()
     {
         Id = 1,
@@ -112,13 +113,14 @@ app.MapGet("/servicetickets", () =>
 
 app.MapGet("/servicetickets/{id}", (int id) =>
 {
-    ServiceTicket serviceTicket = serviceTickets.FirstOrDefault(st => st.Id == id);
-    if ( serviceTicket == null)
-    {
-        return Results.NotFound();
-    }
-    serviceTicket.Employee = employees.FirstOrDefault(e => e.Id == serviceTicket.EmployeeId);
-    return Results.Ok(serviceTicket);
+ServiceTicket serviceTicket = serviceTickets.FirstOrDefault(st => st.Id == id);
+if (serviceTicket == null)
+{
+    return Results.NotFound();
+}
+serviceTicket.Employee = employees.FirstOrDefault(e => e.Id == serviceTicket.EmployeeId);
+serviceTicket.Customer = customers.FirstOrDefault(c => c.Id == serviceTicket.CustomerId);
+return Results.Ok(serviceTicket);
 });
 
 app.MapGet("/employees", () =>
@@ -149,7 +151,51 @@ app.MapGet("/customers/{id}", (int id) =>
     {
         return Results.NotFound();
     }
+    customer.ServiceTickets = serviceTickets.Where(st => st.CustomerId == id).ToList();
+
     return Results.Ok(customer);
+});
+
+app.MapPost("/servicetickets", (ServiceTicket serviceTicket) =>
+{
+    // creates a new id (When we get to it later, our SQL database will do this for us like JSON Server did!)
+    serviceTicket.Id = serviceTickets.Count > 0 ?serviceTickets.Max(st => st.Id) + 1 : 1;
+    serviceTickets.Add(serviceTicket);
+    return serviceTicket;
+});
+
+app.MapDelete("/servicetickets/{id}", (int id) =>
+{
+    ServiceTicket ticketToRemove = serviceTickets.FirstOrDefault(ticket => ticket.Id == id);
+});
+// 1. the Put request will need to be a lambda function
+// 2. it will need the ticket id and the entire service ticket object as a parameter
+// 3. make the varable ticketToUpdate  
+// 4. set it equal to the id of the ticket we want to update
+// 5. locate the index of the ticket we want to update    
+// 6. Update the indexed ticket with the object then return .Ok
+// 7. Error handling: If the ticket id isn't found then return .NotFound
+//    if the ticket id doens't match the service ticket id  then return .BadRequest
+app.MapPut("/servicetickets/{id}", (int id, ServiceTicket serviceTicket) =>
+{
+    ServiceTicket ticketToUpdate = serviceTickets.FirstOrDefault(st => st.Id == id);
+    int ticketIndex = serviceTickets.IndexOf(ticketToUpdate);
+    if (ticketToUpdate == null)
+    {
+        return Results.NotFound();
+    }
+    if (id != serviceTicket.Id)
+    {
+        return Results.BadRequest();
+    }
+    serviceTickets[ticketIndex] = serviceTicket;
+    return Results.Ok();
+});
+
+app.MapPost("/servicetickets/{id}/complete", (int id) =>
+{
+    ServiceTicket ticketToComplete = serviceTickets.FirstOrDefault(st => st.Id ==id);
+    ticketToComplete.DateCompleted = DateTime.Today;
 });
 
 app.Run();
